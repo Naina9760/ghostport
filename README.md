@@ -60,6 +60,10 @@ make test
 make vet
 ```
 
+On a compatible Linux host, `scripts/integration-test.sh` attaches the built
+sensor to the loopback interface, generates traffic, and confirms that GhostPort
+reports it. The script requires `sudo` and is also run by CI.
+
 The checked-in `cmd/ghostport/ghostport.bpf.o` is embedded into the controller.
 After editing the C source, run `make bpf` on Linux and commit the regenerated
 object with the source change. CI verifies that the object is reproducible.
