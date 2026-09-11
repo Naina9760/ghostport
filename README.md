@@ -210,10 +210,23 @@ See [ROADMAP.md](ROADMAP.md) for the staged delivery plan.
 
 ## Releases
 
-Pushing a version tag such as `v0.1.0` runs the release workflow. It tests the
-source, builds Linux AMD64 and ARM64 packages, generates SHA-256 checksums, and
-publishes the files as a GitHub Release. The workflow can also be started
-manually to validate package builds without publishing a release.
+Pushing a version tag such as `v0.1.0` runs the release workflow. It tests
+the source, builds Linux AMD64 and ARM64 packages with the version injected
+into `--version` output, generates an SPDX software bill of materials from
+GitHub's dependency graph, attests build provenance for each package using
+[`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance)
+(GitHub's official SLSA provenance action), self-verifies the SHA-256
+checksums it generated, and publishes everything as a GitHub Release. The
+workflow can also be started manually (`workflow_dispatch`) to validate
+package builds without publishing a release — the publish job only runs on
+an actual tag push.
+
+To verify a downloaded release package:
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing
+gh attestation verify ghostport-<version>-linux-<arch>.tar.gz --owner Naina9760
+```
 
 ## Security and privacy
 
@@ -231,3 +244,6 @@ Licensed under the [Apache License 2.0](LICENSE).
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening
 a pull request. Report security
 problems according to [SECURITY.md](SECURITY.md), not through a public issue.
+See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for what GhostPort does and
+does not defend against, and [CHANGELOG.md](CHANGELOG.md) for a summary of
+what has changed.
