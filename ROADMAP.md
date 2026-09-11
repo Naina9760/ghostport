@@ -7,7 +7,7 @@
 - [x] Support text and newline-delimited JSON output.
 - [x] Test real attachment and traffic capture on Linux CI.
 - [x] Produce versioned AMD64 and ARM64 release packages.
-- [ ] Obtain repository owner approval for the proposed Apache-2.0 license.
+- [x] Obtain repository owner approval for the proposed Apache-2.0 license.
 - [ ] Protect the default branch and require CI.
 
 ## v0.2: detection
