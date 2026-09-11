@@ -79,6 +79,16 @@ On a compatible Linux host, `scripts/integration-test.sh` attaches the built
 sensor to the loopback interface, generates traffic, and confirms that GhostPort
 reports it. The script requires `sudo` and is also run by CI.
 
+`cmd/ghostport/bpf_program_test.go` runs the compiled eBPF program itself in
+the kernel (via `BPF_PROG_TEST_RUN`) against synthetic well-formed, malformed,
+and fragmented packets, and checks the resulting map state. These tests
+require Linux and root and skip themselves everywhere else:
+
+```sh
+go test -c -o bin/ghostport.test ./cmd/ghostport
+sudo ./bin/ghostport.test -test.v
+```
+
 The checked-in `cmd/ghostport/ghostport.bpf.o` is embedded into the controller.
 After editing the C source, run `make bpf` on Linux and commit the regenerated
 object with the source change. CI verifies that the object is reproducible.
@@ -87,6 +97,16 @@ object with the source change. CI verifies that the object is reproducible.
 
 GhostPort observes IPv4 ingress traffic and reports cumulative flow counts. It
 does not block, redirect, or modify traffic. It does not inspect payloads.
+
+Two behaviors worth knowing about:
+
+- The traffic map holds at most 4,096 flows and evicts the least-recently-used
+  entry once full, so a burst of new flows (for example, a port scan) cannot
+  grow memory unbounded, but a flow's packet counter can reset to 1 if it is
+  evicted and later reappears.
+- Only the initial fragment of a fragmented IPv4 datagram carries a
+  destination port; later fragments of the same datagram are still counted by
+  source, destination, and protocol, with destination port reported as 0.
 
 Planned follow-up milestones:
 
