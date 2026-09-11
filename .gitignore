@@ -3,3 +3,29 @@
 /ghostport
 *.log
 .DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+id_rsa*
+id_ed25519*
+
+# Packet captures
+*.pcap
+*.pcapng
+
+# Profiling output
+*.prof
+*.pprof
+cpu.out
+mem.out
