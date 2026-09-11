@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install eBPF build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang llvm libbpf-dev linux-libc-dev
+
+      - name: Compile eBPF object
+        run: make bpf
+
+      - name: Upload compiled eBPF object
+        uses: actions/upload-artifact@v7
+        with:
+          name: ghostport-bpf
+          path: cmd/ghostport/ghostport.bpf.o
+
+      - name: Verify generated object is committed
+        run: git diff --exit-code -- cmd/ghostport/ghostport.bpf.o
+
+      - name: Test
+        run: make test
+
+      - name: Vet
+        run: make vet
+
+      - name: Build
+        run: make build
+
+      - name: Run Linux sensor smoke test
+        run: ./scripts/integration-test.sh
