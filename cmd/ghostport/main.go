@@ -31,6 +31,12 @@ type config struct {
 	interval      time.Duration
 	jsonOutput    bool
 	showVersion   bool
+
+	scanDetection           bool
+	scanWindow              time.Duration
+	scanVerticalThreshold   int
+	scanHorizontalThreshold int
+	scanCooldown            time.Duration
 }
 
 var version = "dev"
@@ -55,11 +61,18 @@ func parseConfig(args []string) (config, error) {
 	flags := flag.NewFlagSet("ghostport", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 
+	defaultScan := defaultScanDetectorConfig()
+
 	var cfg config
 	flags.StringVar(&cfg.interfaceName, "interface", "", "network interface to monitor")
 	flags.DurationVar(&cfg.interval, "interval", 3*time.Second, "telemetry reporting interval")
 	flags.BoolVar(&cfg.jsonOutput, "json", false, "emit newline-delimited JSON")
 	flags.BoolVar(&cfg.showVersion, "version", false, "print version and exit")
+	flags.BoolVar(&cfg.scanDetection, "scan-detection", true, "detect and alert on vertical/horizontal port-scan patterns")
+	flags.DurationVar(&cfg.scanWindow, "scan-window", defaultScan.Window, "how far back a probe still counts toward a scan threshold")
+	flags.IntVar(&cfg.scanVerticalThreshold, "scan-vertical-threshold", defaultScan.VerticalPortThreshold, "distinct ports on one destination, from one source, within the window, to alert as a vertical scan")
+	flags.IntVar(&cfg.scanHorizontalThreshold, "scan-horizontal-threshold", defaultScan.HorizontalHostThreshold, "distinct destinations on one port, from one source, within the window, to alert as a horizontal scan")
+	flags.DurationVar(&cfg.scanCooldown, "scan-cooldown", defaultScan.Cooldown, "minimum time between repeated alerts for the same source and target")
 
 	if err := flags.Parse(args); err != nil {
 		return config{}, err
@@ -69,6 +82,20 @@ func parseConfig(args []string) (config, error) {
 	}
 	if cfg.interval <= 0 {
 		return config{}, errors.New("--interval must be greater than zero")
+	}
+	if cfg.scanDetection {
+		if cfg.scanWindow <= 0 {
+			return config{}, errors.New("--scan-window must be greater than zero")
+		}
+		if cfg.scanVerticalThreshold <= 0 {
+			return config{}, errors.New("--scan-vertical-threshold must be greater than zero")
+		}
+		if cfg.scanHorizontalThreshold <= 0 {
+			return config{}, errors.New("--scan-horizontal-threshold must be greater than zero")
+		}
+		if cfg.scanCooldown <= 0 {
+			return config{}, errors.New("--scan-cooldown must be greater than zero")
+		}
 	}
 	if flags.NArg() != 0 {
 		return config{}, fmt.Errorf("unexpected arguments: %v", flags.Args())
@@ -136,6 +163,19 @@ func run(args []string) error {
 
 	log.Printf("sensor attached; reporting every %s", cfg.interval)
 
+	var detector *scanDetector
+	if cfg.scanDetection {
+		detector = newScanDetector(scanDetectorConfig{
+			Window:                  cfg.scanWindow,
+			VerticalPortThreshold:   cfg.scanVerticalThreshold,
+			HorizontalHostThreshold: cfg.scanHorizontalThreshold,
+			Cooldown:                cfg.scanCooldown,
+			MaxTrackedSources:       defaultScanDetectorConfig().MaxTrackedSources,
+		})
+		log.Printf("scan detection enabled: window=%s vertical-threshold=%d horizontal-threshold=%d cooldown=%s",
+			cfg.scanWindow, cfg.scanVerticalThreshold, cfg.scanHorizontalThreshold, cfg.scanCooldown)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -154,6 +194,13 @@ func run(args []string) error {
 			}
 			if err := writeTraffic(os.Stdout, records, cfg.jsonOutput); err != nil {
 				return err
+			}
+			if detector != nil {
+				for _, alert := range detector.Observe(time.Now(), records) {
+					if err := writeScanAlert(os.Stdout, alert, cfg.jsonOutput); err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}
@@ -227,6 +274,31 @@ func writeTraffic(w io.Writer, records []trafficRecord, jsonOutput bool) error {
 		if _, err := fmt.Fprintf(w, "Source: %-15s | Destination: %-15s | Protocol: %-5s | Port: %-5d | Packets: %d\n", record.SourceIP, record.DestinationIP, record.Protocol, record.DestinationPort, record.Packets); err != nil {
 			return fmt.Errorf("write telemetry: %w", err)
 		}
+	}
+	return nil
+}
+
+func writeScanAlert(w io.Writer, alert ScanAlert, jsonOutput bool) error {
+	if jsonOutput {
+		if err := json.NewEncoder(w).Encode(alert); err != nil {
+			return fmt.Errorf("write JSON scan alert: %w", err)
+		}
+		return nil
+	}
+
+	var err error
+	switch alert.Type {
+	case ScanAlertVertical:
+		_, err = fmt.Fprintf(w, "SCAN ALERT: %s probed %d distinct %s ports on %s within %gs\n",
+			alert.SourceIP, alert.DistinctCount, alert.Protocol, alert.TargetIP, alert.WindowSeconds)
+	case ScanAlertHorizontal:
+		_, err = fmt.Fprintf(w, "SCAN ALERT: %s probed %s/%d across %d distinct destinations within %gs\n",
+			alert.SourceIP, alert.Protocol, alert.TargetPort, alert.DistinctCount, alert.WindowSeconds)
+	default:
+		_, err = fmt.Fprintf(w, "SCAN ALERT: %s (%s)\n", alert.SourceIP, alert.Type)
+	}
+	if err != nil {
+		return fmt.Errorf("write scan alert: %w", err)
 	}
 	return nil
 }

@@ -12,11 +12,11 @@
 
 ## v0.2: detection
 
-- [ ] Count TCP and UDP traffic by source address and destination port.
-- [ ] Detect horizontal and vertical port-scan patterns.
-- [ ] Add configurable thresholds and suppression windows.
-- [ ] Emit versioned structured events without packet payloads.
-- [ ] Add integration fixtures for benign and scan traffic.
+- [x] Count TCP and UDP traffic by source address and destination port.
+- [x] Detect horizontal and vertical port-scan patterns.
+- [x] Add configurable thresholds and suppression windows.
+- [x] Emit versioned structured events without packet payloads.
+- [x] Add integration fixtures for benign and scan traffic.
 
 ## v0.3: delivery and operations
 

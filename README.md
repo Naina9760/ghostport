@@ -6,14 +6,14 @@
 [![Release](https://github.com/Naina9760/ghostport/actions/workflows/release.yml/badge.svg)](https://github.com/Naina9760/ghostport/actions/workflows/release.yml)
 
 GhostPort is a lightweight Linux network sensor. It attaches an eBPF traffic
-classifier to a network interface and reports IPv4 packet counts grouped by
-source address, destination address, protocol, and destination port.
+classifier to a network interface, reports IPv4 packet counts grouped by
+source address, destination address, protocol, and destination port, and can
+alert on vertical and horizontal port-scan patterns in that traffic.
 
-This repository currently targets the first production milestone: a reliable
-single-host sensor with text and newline-delimited JSON output. Scan detection,
-decoy services, fleet coordination, alert delivery, and a dashboard are planned
-separately; the current sensor should not yet be described as a complete
-honey-mesh.
+This repository currently targets the second milestone (v0.2: detection).
+Decoy services, fleet coordination, authenticated alert delivery, and a
+dashboard are planned separately; the current sensor should not yet be
+described as a complete honey-mesh.
 
 ## Architecture
 
@@ -67,6 +67,53 @@ Display the embedded release version with:
 Stop the process with `Ctrl+C` or `SIGTERM`. GhostPort detaches the TCX link
 before exiting.
 
+## Scan detection
+
+Scan detection is on by default. On each reporting interval, GhostPort
+compares the current cumulative packet counts against the previous interval
+and tracks, per source IP and within a sliding time window, which
+destination ports it has probed on each destination, and which destinations
+it has probed on each port.
+
+- A **vertical scan** alert fires when one source crosses the port threshold
+  on a single destination (many ports, one host).
+- A **horizontal scan** alert fires when one source crosses the host
+  threshold on a single port (one port, many hosts).
+
+```sh
+sudo ./bin/ghostport --interface eth0 --json \
+  --scan-window 30s \
+  --scan-vertical-threshold 20 \
+  --scan-horizontal-threshold 20 \
+  --scan-cooldown 60s
+```
+
+Disable it with `--scan-detection=false`. In `--json` mode, an alert is a
+newline-delimited JSON object distinguishable from a traffic snapshot by
+`"kind":"scan_alert"`, and carries a `schema_version` field:
+
+```json
+{"schema_version":1,"kind":"scan_alert","type":"vertical","source_ip":"203.0.113.5","protocol":"tcp","target_ip":"198.51.100.10","distinct_count":23,"window_seconds":30,"timestamp":"2026-01-01T00:00:03Z"}
+```
+
+Operational limitations:
+
+- Detection only sees what the eBPF map reports, so it inherits the same
+  fragment and LRU-eviction behavior described above: a slow scan spread out
+  past `--scan-window`, or one that outlasts the underlying flow map's
+  4,096-entry capacity for unrelated busy traffic, can under-count or miss
+  entirely.
+- Thresholds are per-process, in-memory, and reset on restart; GhostPort
+  does not persist scan state across restarts.
+- A NAT gateway, forward proxy, or load balancer legitimately contacting
+  many hosts or ports from one address is a known source of false
+  positives; tune thresholds and cooldown for the environment, or exclude
+  such sources upstream of GhostPort.
+- Cooldown suppresses repeat alerts for the same (source, target) pair, not
+  for a source moving on to a new target, so a host actively scanning many
+  destinations can still produce one alert per destination within a single
+  cooldown period.
+
 ## Development
 
 ```sh
@@ -77,7 +124,9 @@ make vet
 
 On a compatible Linux host, `scripts/integration-test.sh` attaches the built
 sensor to the loopback interface, generates traffic, and confirms that GhostPort
-reports it. The script requires `sudo` and is also run by CI.
+reports it. `scripts/scan-detection-integration-test.sh` does the same but
+probes several distinct loopback ports and confirms a real vertical-scan
+alert is emitted. Both require `sudo` and are also run by CI.
 
 `cmd/ghostport/bpf_program_test.go` runs the compiled eBPF program itself in
 the kernel (via `BPF_PROG_TEST_RUN`) against synthetic well-formed, malformed,
@@ -110,10 +159,9 @@ Two behaviors worth knowing about:
 
 Planned follow-up milestones:
 
-1. TCP/UDP port and scan-pattern telemetry.
-2. Configurable alert thresholds and structured event delivery.
-3. Decoy-service orchestration.
-4. Authenticated fleet management and a central dashboard.
+1. Authenticated HTTPS delivery of scan alerts to a configurable endpoint.
+2. Decoy-service orchestration.
+3. Authenticated fleet management and a central dashboard.
 
 See [ROADMAP.md](ROADMAP.md) for the staged delivery plan.
 

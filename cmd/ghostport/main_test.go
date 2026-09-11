@@ -30,6 +30,24 @@ func TestParseConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("scan detection defaults on", func(t *testing.T) {
+		cfg, err := parseConfig([]string{"--interface", "eth0"})
+		if err != nil {
+			t.Fatalf("parseConfig returned error: %v", err)
+		}
+		want := defaultScanDetectorConfig()
+		if !cfg.scanDetection || cfg.scanWindow != want.Window || cfg.scanVerticalThreshold != want.VerticalPortThreshold ||
+			cfg.scanHorizontalThreshold != want.HorizontalHostThreshold || cfg.scanCooldown != want.Cooldown {
+			t.Fatalf("unexpected scan defaults: %+v", cfg)
+		}
+	})
+
+	t.Run("scan detection disabled skips its own validation", func(t *testing.T) {
+		if _, err := parseConfig([]string{"--interface", "eth0", "--scan-detection=false", "--scan-window", "0s"}); err != nil {
+			t.Fatalf("parseConfig returned error with scan detection disabled: %v", err)
+		}
+	})
+
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -37,6 +55,10 @@ func TestParseConfig(t *testing.T) {
 		{name: "missing interface", args: nil},
 		{name: "invalid interval", args: []string{"--interface", "eth0", "--interval", "0s"}},
 		{name: "extra argument", args: []string{"--interface", "eth0", "extra"}},
+		{name: "invalid scan window", args: []string{"--interface", "eth0", "--scan-window", "0s"}},
+		{name: "invalid scan vertical threshold", args: []string{"--interface", "eth0", "--scan-vertical-threshold", "0"}},
+		{name: "invalid scan horizontal threshold", args: []string{"--interface", "eth0", "--scan-horizontal-threshold", "0"}},
+		{name: "invalid scan cooldown", args: []string{"--interface", "eth0", "--scan-cooldown", "0s"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, err := parseConfig(tc.args); err == nil {

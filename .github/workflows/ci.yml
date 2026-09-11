@@ -56,3 +56,6 @@ jobs:
 
       - name: Run Linux sensor smoke test
         run: ./scripts/integration-test.sh
+
+      - name: Run scan-detection integration test
+        run: ./scripts/scan-detection-integration-test.sh
