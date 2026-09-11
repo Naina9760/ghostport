@@ -48,6 +48,32 @@ func TestParseConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("delivery disabled by default", func(t *testing.T) {
+		cfg, err := parseConfig([]string{"--interface", "eth0"})
+		if err != nil {
+			t.Fatalf("parseConfig returned error: %v", err)
+		}
+		if cfg.deliverEnabled {
+			t.Fatal("deliverEnabled = true, want false (delivery must be off by default)")
+		}
+	})
+
+	t.Run("delivery enabled with valid https endpoint", func(t *testing.T) {
+		cfg, err := parseConfig([]string{"--interface", "eth0", "--deliver", "--deliver-endpoint", "https://example.com/events"})
+		if err != nil {
+			t.Fatalf("parseConfig returned error: %v", err)
+		}
+		if !cfg.deliverEnabled || cfg.deliverEndpoint != "https://example.com/events" {
+			t.Fatalf("unexpected config: %+v", cfg)
+		}
+	})
+
+	t.Run("delivery disabled skips its own validation", func(t *testing.T) {
+		if _, err := parseConfig([]string{"--interface", "eth0", "--deliver-endpoint", "http://insecure.example.com"}); err != nil {
+			t.Fatalf("parseConfig returned error with delivery disabled: %v", err)
+		}
+	})
+
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -59,12 +85,29 @@ func TestParseConfig(t *testing.T) {
 		{name: "invalid scan vertical threshold", args: []string{"--interface", "eth0", "--scan-vertical-threshold", "0"}},
 		{name: "invalid scan horizontal threshold", args: []string{"--interface", "eth0", "--scan-horizontal-threshold", "0"}},
 		{name: "invalid scan cooldown", args: []string{"--interface", "eth0", "--scan-cooldown", "0s"}},
+		{name: "deliver missing endpoint", args: []string{"--interface", "eth0", "--deliver"}},
+		{name: "deliver non-https endpoint", args: []string{"--interface", "eth0", "--deliver", "--deliver-endpoint", "http://example.com/events"}},
+		{name: "deliver invalid timeout", args: []string{"--interface", "eth0", "--deliver", "--deliver-endpoint", "https://example.com", "--deliver-timeout", "0s"}},
+		{name: "deliver negative max retries", args: []string{"--interface", "eth0", "--deliver", "--deliver-endpoint", "https://example.com", "--deliver-max-retries", "-1"}},
+		{name: "deliver invalid queue size", args: []string{"--interface", "eth0", "--deliver", "--deliver-endpoint", "https://example.com", "--deliver-queue-size", "0"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, err := parseConfig(tc.args); err == nil {
 				t.Fatal("expected an error")
 			}
 		})
+	}
+}
+
+func TestResolveDeliveryToken(t *testing.T) {
+	if token, err := resolveDeliveryToken(false, ""); err != nil || token != "" {
+		t.Fatalf("delivery disabled: got (%q, %v), want (\"\", nil)", token, err)
+	}
+	if token, err := resolveDeliveryToken(true, ""); err == nil {
+		t.Fatalf("delivery enabled with empty env value: got (%q, nil), want an error", token)
+	}
+	if token, err := resolveDeliveryToken(true, "secret"); err != nil || token != "secret" {
+		t.Fatalf("delivery enabled with a token set: got (%q, %v), want (\"secret\", nil)", token, err)
 	}
 }
 
