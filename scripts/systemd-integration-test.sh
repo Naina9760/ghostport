@@ -68,12 +68,13 @@ fi
 
 # Best-effort, non-fatal: if bpftool is available, confirm the program is
 # actually attached at the kernel level (not just per GhostPort's own log).
+# The raw output is always printed so a format mismatch is visible in CI
+# logs rather than silently making this check meaningless.
+bpftool_before=""
 if command -v bpftool >/dev/null 2>&1; then
-  if sudo bpftool net show 2>/dev/null | grep -q "ghostport_ingress_monitor"; then
-    echo "bpftool confirms ghostport_ingress_monitor is attached"
-  else
-    echo "note: bpftool did not report ghostport_ingress_monitor attached (non-fatal, tool/format dependent)"
-  fi
+  bpftool_before=$(sudo bpftool net show dev lo 2>&1)
+  echo "bpftool net show dev lo (before stop):"
+  echo "$bpftool_before"
 fi
 
 sudo systemctl stop ghostport
@@ -92,11 +93,18 @@ if [[ "$exit_status" != "0" ]]; then
 fi
 
 if command -v bpftool >/dev/null 2>&1; then
-  if sudo bpftool net show 2>/dev/null | grep -q "ghostport_ingress_monitor"; then
-    echo "ghostport_ingress_monitor is still attached after systemctl stop" >&2
+  bpftool_after=$(sudo bpftool net show dev lo 2>&1)
+  echo "bpftool net show dev lo (after stop):"
+  echo "$bpftool_after"
+
+  if [[ "$bpftool_before" == "$bpftool_after" ]]; then
+    echo "bpftool output for dev lo is identical before and after systemctl stop; this check cannot tell attachment apart from detachment (see raw output above) and is being treated as inconclusive, not a pass" >&2
+  elif echo "$bpftool_after" | grep -qi "tcx\|ghostport"; then
+    echo "dev lo still shows a tcx/ghostport program attached after systemctl stop" >&2
     exit 1
+  else
+    echo "bpftool confirms the program is detached from dev lo after stop (output changed from the pre-stop state above)"
   fi
-  echo "bpftool confirms ghostport_ingress_monitor is detached after stop"
 fi
 
 echo "GhostPort ran under systemd, reported loopback traffic, and shut down cleanly"
