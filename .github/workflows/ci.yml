@@ -45,5 +45,8 @@ jobs:
       - name: Build
         run: make build
 
+      - name: Verify release packaging
+        run: ./scripts/package-release.sh amd64 ci
+
       - name: Run Linux sensor smoke test
         run: ./scripts/integration-test.sh

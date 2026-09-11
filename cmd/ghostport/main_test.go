@@ -20,6 +20,16 @@ func TestParseConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("version does not require interface", func(t *testing.T) {
+		cfg, err := parseConfig([]string{"--version"})
+		if err != nil {
+			t.Fatalf("parseConfig returned error: %v", err)
+		}
+		if !cfg.showVersion {
+			t.Fatal("showVersion = false, want true")
+		}
+	})
+
 	for _, tc := range []struct {
 		name string
 		args []string
