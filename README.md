@@ -113,11 +113,10 @@ applicable privacy law.
 
 ## License
 
-No license has been selected yet. The repository owner should choose and add one
-before external distribution or reuse.
+Licensed under the [Apache License 2.0](LICENSE).
 
 ## Contributing and security
 
-Contributions are welcome once the owner adds an open-source license. Read
-[CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report security
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening
+a pull request. Report security
 problems according to [SECURITY.md](SECURITY.md), not through a public issue.
