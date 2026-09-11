@@ -1,5 +1,8 @@
 # GhostPort
 
+[![CI](https://github.com/Naina9760/ghostport/actions/workflows/ci.yml/badge.svg)](https://github.com/Naina9760/ghostport/actions/workflows/ci.yml)
+[![Release](https://github.com/Naina9760/ghostport/actions/workflows/release.yml/badge.svg)](https://github.com/Naina9760/ghostport/actions/workflows/release.yml)
+
 GhostPort is a lightweight Linux network sensor. It attaches an eBPF traffic
 classifier to a network interface and reports IPv4 packet counts grouped by
 source address.
@@ -47,6 +50,12 @@ Change the reporting interval or produce machine-readable output:
 
 ```sh
 sudo ./bin/ghostport --interface eth0 --interval 10s --json
+```
+
+Display the embedded release version with:
+
+```sh
+./bin/ghostport --version
 ```
 
 Stop the process with `Ctrl+C` or `SIGTERM`. GhostPort detaches the TCX link
@@ -100,3 +109,9 @@ applicable privacy law.
 
 No license has been selected yet. The repository owner should choose and add one
 before external distribution or reuse.
+
+## Contributing and security
+
+Contributions are welcome once the owner adds an open-source license. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report security
+problems according to [SECURITY.md](SECURITY.md), not through a public issue.

@@ -30,7 +30,10 @@ type config struct {
 	interfaceName string
 	interval      time.Duration
 	jsonOutput    bool
+	showVersion   bool
 }
+
+var version = "dev"
 
 type trafficRecord struct {
 	SourceIP string `json:"source_ip"`
@@ -45,11 +48,12 @@ func parseConfig(args []string) (config, error) {
 	flags.StringVar(&cfg.interfaceName, "interface", "", "network interface to monitor")
 	flags.DurationVar(&cfg.interval, "interval", 3*time.Second, "telemetry reporting interval")
 	flags.BoolVar(&cfg.jsonOutput, "json", false, "emit newline-delimited JSON")
+	flags.BoolVar(&cfg.showVersion, "version", false, "print version and exit")
 
 	if err := flags.Parse(args); err != nil {
 		return config{}, err
 	}
-	if cfg.interfaceName == "" {
+	if cfg.interfaceName == "" && !cfg.showVersion {
 		return config{}, errors.New("--interface is required")
 	}
 	if cfg.interval <= 0 {
@@ -72,6 +76,10 @@ func run(args []string) error {
 	cfg, err := parseConfig(args)
 	if err != nil {
 		return fmt.Errorf("configuration: %w", err)
+	}
+	if cfg.showVersion {
+		fmt.Printf("ghostport %s\n", version)
+		return nil
 	}
 
 	iface, err := net.InterfaceByName(cfg.interfaceName)

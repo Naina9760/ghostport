@@ -24,7 +24,7 @@ mkdir -p "$stage_dir"
 
 CGO_ENABLED=0 GOOS=linux GOARCH="$architecture" go build \
   -trimpath \
-  -ldflags="-s -w" \
+  -ldflags="-s -w -X main.version=${version}" \
   -o "$stage_dir/ghostport" \
   ./cmd/ghostport
 
