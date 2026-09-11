@@ -64,7 +64,7 @@ jobs:
           merge-multiple: true
 
       - name: Create checksums
-        run: cd dist && sha256sum *.tar.gz > SHA256SUMS
+        run: cd dist && sha256sum ./*.tar.gz > SHA256SUMS
 
       - name: Publish release
         env:
