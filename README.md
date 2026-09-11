@@ -80,6 +80,15 @@ Planned follow-up milestones:
 3. Decoy-service orchestration.
 4. Authenticated fleet management and a central dashboard.
 
+See [ROADMAP.md](ROADMAP.md) for the staged delivery plan.
+
+## Releases
+
+Pushing a version tag such as `v0.1.0` runs the release workflow. It tests the
+source, builds Linux AMD64 and ARM64 packages, generates SHA-256 checksums, and
+publishes the files as a GitHub Release. The workflow can also be started
+manually to validate package builds without publishing a release.
+
 ## Security and privacy
 
 Running eBPF software changes kernel state and requires elevated privileges.

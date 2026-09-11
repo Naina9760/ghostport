@@ -1,4 +1,5 @@
 /bin/
+/dist/
 /ghostport
 *.log
 .DS_Store
