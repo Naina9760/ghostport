@@ -19,8 +19,6 @@ BPF_OBJECT := cmd/ghostport/ghostport.bpf.o
 # -fdebug-prefix-map rewrites the build directory recorded in DWARF debug info
 # to a fixed value so the object is byte-identical regardless of the checkout
 # path (e.g. a contributor's home directory vs. a GitHub Actions runner path).
-# Also applied on the chore/build-reproducibility-and-hygiene branch (#12);
-# duplicated here because that branch is not yet merged into master.
 BPF_CFLAGS := -O2 -g -target bpf -D__TARGET_ARCH_$(BPF_ARCH) -I/usr/include/$(MULTIARCH) -fdebug-prefix-map=$(CURDIR)=.
 
 .PHONY: all bpf build clean fmt test vet verify
