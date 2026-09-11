@@ -72,8 +72,8 @@ fi
 # logs rather than silently making this check meaningless.
 bpftool_before=""
 if command -v bpftool >/dev/null 2>&1; then
-  bpftool_before=$(sudo bpftool net show dev lo 2>&1)
-  echo "bpftool net show dev lo (before stop):"
+  bpftool_before=$(sudo bpftool net show 2>&1 || true)
+  echo "bpftool net show (before stop):"
   echo "$bpftool_before"
 fi
 
@@ -93,8 +93,8 @@ if [[ "$exit_status" != "0" ]]; then
 fi
 
 if command -v bpftool >/dev/null 2>&1; then
-  bpftool_after=$(sudo bpftool net show dev lo 2>&1)
-  echo "bpftool net show dev lo (after stop):"
+  bpftool_after=$(sudo bpftool net show 2>&1 || true)
+  echo "bpftool net show (after stop):"
   echo "$bpftool_after"
 
   if [[ "$bpftool_before" == "$bpftool_after" ]]; then
