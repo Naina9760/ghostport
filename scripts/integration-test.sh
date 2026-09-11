@@ -21,6 +21,13 @@ sleep 2
 ping -c 3 127.0.0.1 >/dev/null
 sleep 2
 
+if ! kill -0 "$sensor_pid" 2>/dev/null; then
+  echo "GhostPort exited before traffic verification" >&2
+  cat "$log_file" >&2
+  cat "$output_file" >&2
+  exit 1
+fi
+
 sudo kill -INT "$sensor_pid"
 wait "$sensor_pid"
 sensor_pid=""
