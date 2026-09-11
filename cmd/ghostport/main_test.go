@@ -46,6 +46,18 @@ func TestParseConfig(t *testing.T) {
 	}
 }
 
+func FuzzParseConfig(f *testing.F) {
+	for _, seed := range []string{"eth0", "", "--", "lo\x00", "a b c", "\xff\xfe"} {
+		f.Add(seed, "3s")
+		f.Add(seed, "")
+		f.Add(seed, "-1s")
+	}
+	f.Fuzz(func(t *testing.T, interfaceName, interval string) {
+		// Must never panic regardless of what a user passes on argv.
+		_, _ = parseConfig([]string{"--interface", interfaceName, "--interval", interval})
+	})
+}
+
 func TestSourceIPUsesNativeByteOrder(t *testing.T) {
 	packetBytes := []byte{192, 0, 2, 10}
 	key := binary.NativeEndian.Uint32(packetBytes)

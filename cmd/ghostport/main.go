@@ -98,6 +98,10 @@ func run(args []string) error {
 		return fmt.Errorf("find interface %q: %w", cfg.interfaceName, err)
 	}
 
+	if err := checkKernelSupportsTCX(); err != nil {
+		return fmt.Errorf("kernel compatibility: %w", err)
+	}
+
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return fmt.Errorf("remove memlock limit: %w", err)
 	}

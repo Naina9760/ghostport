@@ -39,6 +39,12 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Build privileged eBPF program tests
+        run: go test -c -o bin/ghostport.test ./cmd/ghostport
+
+      - name: Run privileged eBPF program tests
+        run: sudo ./bin/ghostport.test -test.v
+
       - name: Vet
         run: make vet
 
