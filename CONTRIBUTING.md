@@ -23,16 +23,29 @@ make vet
 make build
 ```
 
+Also run, if available locally: `staticcheck ./...`, `govulncheck ./...`,
+and `gitleaks detect --source . --log-opts="--all"`. CI runs all of these.
+
 Building the eBPF object requires Linux, Clang/LLVM, libbpf headers, and Linux
-headers. Run the privileged smoke test on a compatible Linux system:
+headers. On a compatible Linux system, run the privileged integration tests:
 
 ```sh
+go test -c -o bin/ghostport.test ./cmd/ghostport && sudo ./bin/ghostport.test -test.v
 ./scripts/integration-test.sh
+./scripts/scan-detection-integration-test.sh
+./scripts/systemd-integration-test.sh
 ```
 
 CI repeats these checks and verifies release packaging. Do not commit generated
 controller binaries. When changing the eBPF C source, commit the reproducibly
-generated `cmd/ghostport/ghostport.bpf.o` with it.
+generated `cmd/ghostport/ghostport.bpf.o` with it (CI's "Verify generated
+object is committed" step will otherwise fail on your pull request; if you
+cannot build it locally, note that in the PR and pull the artifact CI
+produces from the failed run).
+
+For behavior with security implications (parsing, map/memory bounds, event
+delivery, service hardening), see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
+for the assumptions your change should not silently break.
 
 ## Pull requests
 
