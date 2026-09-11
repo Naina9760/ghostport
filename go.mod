@@ -1,4 +1,4 @@
-module github.com/naina/ghostport
+module github.com/Naina9760/ghostport
 
 go 1.25.0
 

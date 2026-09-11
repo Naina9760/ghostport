@@ -35,7 +35,7 @@ int ghostport_ingress_monitor(struct __sk_buff *ctx) {
     __u32 saddr = iph->saddr;
     __u64 *count = bpf_map_lookup_elem(&packet_counts, &saddr);
     if (count) {
-        (*count)++;
+        __sync_fetch_and_add(count, 1);
     } else {
         __u64 initial_count = 1;
         bpf_map_update_elem(&packet_counts, &saddr, &initial_count, BPF_ANY);
