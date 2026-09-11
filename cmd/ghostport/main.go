@@ -12,9 +12,12 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -37,6 +40,33 @@ type config struct {
 	scanVerticalThreshold   int
 	scanHorizontalThreshold int
 	scanCooldown            time.Duration
+
+	deliverEnabled    bool
+	deliverEndpoint   string
+	deliverTimeout    time.Duration
+	deliverMaxRetries int
+	deliverQueueSize  int
+}
+
+// deliveryAuthTokenEnvVar is the only place an operator provides the
+// bearer token used to authenticate to the delivery endpoint. It is never
+// accepted as a CLI flag, since flags are visible to any local user who
+// can list processes (e.g. `ps -ef`), while an environment variable is
+// only visible to processes with permission to read this process's own
+// environment.
+const deliveryAuthTokenEnvVar = "GHOSTPORT_DELIVERY_TOKEN"
+
+// resolveDeliveryToken separates the "is a token required and present"
+// decision from reading the environment, so it can be unit tested without
+// mutating process-wide environment state.
+func resolveDeliveryToken(deliverEnabled bool, envValue string) (string, error) {
+	if !deliverEnabled {
+		return "", nil
+	}
+	if envValue == "" {
+		return "", fmt.Errorf("%s environment variable is required with --deliver", deliveryAuthTokenEnvVar)
+	}
+	return envValue, nil
 }
 
 var version = "dev"
@@ -62,6 +92,7 @@ func parseConfig(args []string) (config, error) {
 	flags.SetOutput(io.Discard)
 
 	defaultScan := defaultScanDetectorConfig()
+	defaultDelivery := defaultEventDeliveryConfig()
 
 	var cfg config
 	flags.StringVar(&cfg.interfaceName, "interface", "", "network interface to monitor")
@@ -73,6 +104,11 @@ func parseConfig(args []string) (config, error) {
 	flags.IntVar(&cfg.scanVerticalThreshold, "scan-vertical-threshold", defaultScan.VerticalPortThreshold, "distinct ports on one destination, from one source, within the window, to alert as a vertical scan")
 	flags.IntVar(&cfg.scanHorizontalThreshold, "scan-horizontal-threshold", defaultScan.HorizontalHostThreshold, "distinct destinations on one port, from one source, within the window, to alert as a horizontal scan")
 	flags.DurationVar(&cfg.scanCooldown, "scan-cooldown", defaultScan.Cooldown, "minimum time between repeated alerts for the same source and target")
+	flags.BoolVar(&cfg.deliverEnabled, "deliver", false, "deliver scan alerts to an authenticated HTTPS endpoint (disabled by default)")
+	flags.StringVar(&cfg.deliverEndpoint, "deliver-endpoint", "", "HTTPS endpoint to deliver scan alerts to; required with --deliver, must be an https:// URL")
+	flags.DurationVar(&cfg.deliverTimeout, "deliver-timeout", defaultDelivery.Timeout, "per-attempt HTTP timeout for event delivery")
+	flags.IntVar(&cfg.deliverMaxRetries, "deliver-max-retries", defaultDelivery.MaxRetries, "additional delivery attempts after the first, for retryable failures")
+	flags.IntVar(&cfg.deliverQueueSize, "deliver-queue-size", defaultDelivery.QueueSize, "maximum alerts buffered waiting for delivery before new ones are dropped")
 
 	if err := flags.Parse(args); err != nil {
 		return config{}, err
@@ -97,6 +133,23 @@ func parseConfig(args []string) (config, error) {
 			return config{}, errors.New("--scan-cooldown must be greater than zero")
 		}
 	}
+	if cfg.deliverEnabled {
+		if cfg.deliverEndpoint == "" {
+			return config{}, errors.New("--deliver-endpoint is required with --deliver")
+		}
+		if !strings.HasPrefix(cfg.deliverEndpoint, "https://") {
+			return config{}, fmt.Errorf("--deliver-endpoint must be an https:// URL, got %q", cfg.deliverEndpoint)
+		}
+		if cfg.deliverTimeout <= 0 {
+			return config{}, errors.New("--deliver-timeout must be greater than zero")
+		}
+		if cfg.deliverMaxRetries < 0 {
+			return config{}, errors.New("--deliver-max-retries must not be negative")
+		}
+		if cfg.deliverQueueSize <= 0 {
+			return config{}, errors.New("--deliver-queue-size must be greater than zero")
+		}
+	}
 	if flags.NArg() != 0 {
 		return config{}, fmt.Errorf("unexpected arguments: %v", flags.Args())
 	}
@@ -118,6 +171,23 @@ func run(args []string) error {
 	if cfg.showVersion {
 		fmt.Printf("ghostport %s\n", version)
 		return nil
+	}
+
+	var delivery *eventDelivery
+	if cfg.deliverEnabled {
+		token, err := resolveDeliveryToken(cfg.deliverEnabled, os.Getenv(deliveryAuthTokenEnvVar))
+		if err != nil {
+			return fmt.Errorf("configuration: %w", err)
+		}
+		delivery = newEventDelivery(eventDeliveryConfig{
+			Endpoint:      cfg.deliverEndpoint,
+			Timeout:       cfg.deliverTimeout,
+			MaxRetries:    cfg.deliverMaxRetries,
+			QueueSize:     cfg.deliverQueueSize,
+			ShutdownGrace: defaultEventDeliveryConfig().ShutdownGrace,
+		}, token, &http.Client{Timeout: cfg.deliverTimeout})
+		log.Printf("event delivery enabled: endpoint=%s timeout=%s max-retries=%d queue-size=%d",
+			cfg.deliverEndpoint, cfg.deliverTimeout, cfg.deliverMaxRetries, cfg.deliverQueueSize)
 	}
 
 	iface, err := net.InterfaceByName(cfg.interfaceName)
@@ -179,6 +249,15 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	var deliveryWG sync.WaitGroup
+	if delivery != nil {
+		deliveryWG.Add(1)
+		go func() {
+			defer deliveryWG.Done()
+			delivery.Run(ctx)
+		}()
+	}
+
 	ticker := time.NewTicker(cfg.interval)
 	defer ticker.Stop()
 
@@ -186,6 +265,12 @@ func run(args []string) error {
 		select {
 		case <-ctx.Done():
 			log.Println("shutting down and detaching sensor")
+			if delivery != nil {
+				deliveryWG.Wait()
+				if dropped := delivery.Dropped(); dropped > 0 {
+					log.Printf("event delivery: dropped %d alerts over this run due to a full queue", dropped)
+				}
+			}
 			return nil
 		case <-ticker.C:
 			records, err := readTraffic(objs.TrafficCounts)
@@ -199,6 +284,9 @@ func run(args []string) error {
 				for _, alert := range detector.Observe(time.Now(), records) {
 					if err := writeScanAlert(os.Stdout, alert, cfg.jsonOutput); err != nil {
 						return err
+					}
+					if delivery != nil {
+						delivery.Enqueue(alert)
 					}
 				}
 			}

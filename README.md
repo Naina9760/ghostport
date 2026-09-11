@@ -10,10 +10,10 @@ classifier to a network interface, reports IPv4 packet counts grouped by
 source address, destination address, protocol, and destination port, and can
 alert on vertical and horizontal port-scan patterns in that traffic.
 
-This repository currently targets the second milestone (v0.2: detection).
-Decoy services, fleet coordination, authenticated alert delivery, and a
-dashboard are planned separately; the current sensor should not yet be
-described as a complete honey-mesh.
+It can optionally deliver those alerts to an authenticated HTTPS endpoint.
+Decoy services, fleet coordination, and a central dashboard are planned
+separately; the current sensor should not yet be described as a complete
+honey-mesh.
 
 ## Architecture
 
@@ -114,6 +114,37 @@ Operational limitations:
   destinations can still produce one alert per destination within a single
   cooldown period.
 
+## Event delivery
+
+Delivering scan alerts to an external HTTPS endpoint is disabled by default;
+no telemetry leaves the host unless explicitly configured. To enable it, set
+`GHOSTPORT_DELIVERY_TOKEN` in the environment (never on the command line,
+where it would be visible to any local user listing processes) and pass
+`--deliver` with an `https://` endpoint:
+
+```sh
+export GHOSTPORT_DELIVERY_TOKEN=...
+sudo -E ./bin/ghostport --interface eth0 --json \
+  --deliver --deliver-endpoint https://collector.example.com/ghostport
+```
+
+Each alert is POSTed as JSON with `Authorization: Bearer <token>`. Delivery:
+
+- validates the endpoint's TLS certificate normally (no option to disable
+  this);
+- refuses a non-`https://` endpoint outright;
+- retries a network error or 5xx response with exponential backoff and
+  jitter, up to `--deliver-max-retries` (default 3) additional attempts,
+  and does not retry a 4xx response, since retrying a rejected or
+  unauthorized request cannot succeed without operator intervention;
+- buffers at most `--deliver-queue-size` (default 100) alerts; once full,
+  new alerts are dropped and counted, not blocked on or grown without
+  bound, and the total dropped count is logged on shutdown;
+- on shutdown, keeps attempting to flush whatever is still queued for up to
+  a few seconds before exiting;
+- never logs the token; log lines mention only the endpoint, status codes,
+  and attempt counts.
+
 ## Development
 
 ```sh
@@ -159,7 +190,7 @@ Two behaviors worth knowing about:
 
 Planned follow-up milestones:
 
-1. Authenticated HTTPS delivery of scan alerts to a configurable endpoint.
+1. A hardened systemd service and health/status reporting.
 2. Decoy-service orchestration.
 3. Authenticated fleet management and a central dashboard.
 

@@ -20,8 +20,8 @@
 
 ## v0.3: delivery and operations
 
-- [ ] Deliver events to a configurable HTTPS endpoint.
-- [ ] Authenticate events and retry with bounded backoff.
+- [x] Deliver events to a configurable HTTPS endpoint.
+- [x] Authenticate events and retry with bounded backoff.
 - [ ] Add health and sensor-status reporting.
 - [ ] Package a hardened systemd service.
 - [ ] Document upgrades and rollback.
