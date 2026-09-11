@@ -22,10 +22,8 @@ BPF_CFLAGS := -O2 -g -target bpf -D__TARGET_ARCH_$(BPF_ARCH) -I/usr/include/$(MU
 
 all: verify build
 
-bpf: $(BPF_OBJECT)
-
-$(BPF_OBJECT): $(BPF_SOURCE)
-	$(CLANG) $(BPF_CFLAGS) -c $< -o $@
+bpf:
+	$(CLANG) $(BPF_CFLAGS) -c $(BPF_SOURCE) -o $(BPF_OBJECT)
 
 build: bpf
 	mkdir -p bin
