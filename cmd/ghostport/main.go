@@ -36,8 +36,19 @@ type config struct {
 var version = "dev"
 
 type trafficRecord struct {
-	SourceIP string `json:"source_ip"`
-	Packets  uint64 `json:"packets"`
+	SourceIP        string `json:"source_ip"`
+	DestinationIP   string `json:"destination_ip"`
+	Protocol        string `json:"protocol"`
+	DestinationPort uint16 `json:"destination_port,omitempty"`
+	Packets         uint64 `json:"packets"`
+}
+
+type trafficKey struct {
+	SourceAddress      uint32
+	DestinationAddress uint32
+	DestinationPort    uint16
+	Protocol           uint8
+	Padding            uint8
 }
 
 func parseConfig(args []string) (config, error) {
@@ -100,14 +111,14 @@ func run(args []string) error {
 
 	var objs struct {
 		IngressMonitor *ebpf.Program `ebpf:"ghostport_ingress_monitor"`
-		PacketCounts   *ebpf.Map     `ebpf:"packet_counts"`
+		TrafficCounts  *ebpf.Map     `ebpf:"traffic_counts"`
 	}
 
 	if err := spec.LoadAndAssign(&objs, nil); err != nil {
 		return fmt.Errorf("load eBPF objects: %w", err)
 	}
 	defer objs.IngressMonitor.Close()
-	defer objs.PacketCounts.Close()
+	defer objs.TrafficCounts.Close()
 
 	attachment, err := link.AttachTCX(link.TCXOptions{
 		Interface: iface.Index,
@@ -133,7 +144,7 @@ func run(args []string) error {
 			log.Println("shutting down and detaching sensor")
 			return nil
 		case <-ticker.C:
-			records, err := readTraffic(objs.PacketCounts)
+			records, err := readTraffic(objs.TrafficCounts)
 			if err != nil {
 				return err
 			}
@@ -150,18 +161,42 @@ func sourceIP(key uint32) string {
 	return net.IP(ipBytes).String()
 }
 
+func protocolName(protocol uint8) string {
+	switch protocol {
+	case 6:
+		return "tcp"
+	case 17:
+		return "udp"
+	case 1:
+		return "icmp"
+	default:
+		return fmt.Sprintf("ip-%d", protocol)
+	}
+}
+
 func readTraffic(packetCounts *ebpf.Map) ([]trafficRecord, error) {
 	var records []trafficRecord
-	var key uint32
+	var key trafficKey
 	var value uint64
 	iter := packetCounts.Iterate()
 	for iter.Next(&key, &value) {
-		records = append(records, trafficRecord{SourceIP: sourceIP(key), Packets: value})
+		records = append(records, trafficRecord{
+			SourceIP: sourceIP(key.SourceAddress), DestinationIP: sourceIP(key.DestinationAddress),
+			Protocol: protocolName(key.Protocol), DestinationPort: key.DestinationPort, Packets: value,
+		})
 	}
 	if err := iter.Err(); err != nil {
 		return nil, fmt.Errorf("read telemetry map: %w", err)
 	}
-	sort.Slice(records, func(i, j int) bool { return records[i].SourceIP < records[j].SourceIP })
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].SourceIP != records[j].SourceIP {
+			return records[i].SourceIP < records[j].SourceIP
+		}
+		if records[i].DestinationIP != records[j].DestinationIP {
+			return records[i].DestinationIP < records[j].DestinationIP
+		}
+		return records[i].DestinationPort < records[j].DestinationPort
+	})
 	return records, nil
 }
 
@@ -185,7 +220,7 @@ func writeTraffic(w io.Writer, records []trafficRecord, jsonOutput bool) error {
 		return err
 	}
 	for _, record := range records {
-		if _, err := fmt.Fprintf(w, "Source IP: %-15s | Packets observed: %d\n", record.SourceIP, record.Packets); err != nil {
+		if _, err := fmt.Fprintf(w, "Source: %-15s | Destination: %-15s | Protocol: %-5s | Port: %-5d | Packets: %d\n", record.SourceIP, record.DestinationIP, record.Protocol, record.DestinationPort, record.Packets); err != nil {
 			return fmt.Errorf("write telemetry: %w", err)
 		}
 	}

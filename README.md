@@ -5,7 +5,7 @@
 
 GhostPort is a lightweight Linux network sensor. It attaches an eBPF traffic
 classifier to a network interface and reports IPv4 packet counts grouped by
-source address.
+source address, destination address, protocol, and destination port.
 
 This repository currently targets the first production milestone: a reliable
 single-host sensor with text and newline-delimited JSON output. Scan detection,
@@ -79,7 +79,7 @@ object with the source change. CI verifies that the object is reproducible.
 
 ## Current scope
 
-GhostPort v1 observes IPv4 ingress traffic and reports cumulative counts. It
+GhostPort observes IPv4 ingress traffic and reports cumulative flow counts. It
 does not block, redirect, or modify traffic. It does not inspect payloads.
 
 Planned follow-up milestones:

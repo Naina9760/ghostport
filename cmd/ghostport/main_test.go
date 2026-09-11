@@ -56,7 +56,7 @@ func TestSourceIPUsesNativeByteOrder(t *testing.T) {
 
 func TestWriteTrafficText(t *testing.T) {
 	var output bytes.Buffer
-	records := []trafficRecord{{SourceIP: "192.0.2.10", Packets: 7}}
+	records := []trafficRecord{{SourceIP: "192.0.2.10", DestinationIP: "198.51.100.4", Protocol: "tcp", DestinationPort: 443, Packets: 7}}
 	if err := writeTraffic(&output, records, false); err != nil {
 		t.Fatalf("writeTraffic returned error: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestWriteTrafficText(t *testing.T) {
 
 func TestWriteTrafficJSON(t *testing.T) {
 	var output bytes.Buffer
-	records := []trafficRecord{{SourceIP: "198.51.100.4", Packets: 12}}
+	records := []trafficRecord{{SourceIP: "198.51.100.4", DestinationIP: "192.0.2.10", Protocol: "udp", DestinationPort: 53, Packets: 12}}
 	if err := writeTraffic(&output, records, true); err != nil {
 		t.Fatalf("writeTraffic returned error: %v", err)
 	}
@@ -81,5 +81,13 @@ func TestWriteTrafficJSON(t *testing.T) {
 	}
 	if payload.Timestamp.IsZero() || len(payload.Traffic) != 1 || payload.Traffic[0] != records[0] {
 		t.Fatalf("unexpected JSON output: %+v", payload)
+	}
+}
+
+func TestProtocolName(t *testing.T) {
+	for protocol, want := range map[uint8]string{1: "icmp", 6: "tcp", 17: "udp", 99: "ip-99"} {
+		if got := protocolName(protocol); got != want {
+			t.Errorf("protocolName(%d) = %q, want %q", protocol, got, want)
+		}
 	}
 }
