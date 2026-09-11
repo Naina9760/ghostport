@@ -12,7 +12,13 @@ EnvironmentFile=/etc/ghostport/ghostport.env
 # GHOSTPORT_DELIVERY_TOKEN when --deliver is used. The leading "-" makes
 # this file optional; the service still starts without it.
 EnvironmentFile=-/etc/ghostport/delivery-token.env
-ExecStart=/usr/local/bin/ghostport --interface ${GHOSTPORT_INTERFACE} --interval ${GHOSTPORT_INTERVAL} --json ${GHOSTPORT_EXTRA_ARGS}
+# GHOSTPORT_EXTRA_ARGS is deliberately unbraced ($VAR, not ${VAR}): systemd
+# word-splits an unbraced expansion and drops it entirely when empty,
+# producing zero extra arguments. The braced form always inserts exactly
+# one argument, even an empty string, which flag.NArg() then rejects as an
+# unexpected positional argument - caught by
+# scripts/systemd-integration-test.sh actually starting this unit on Linux.
+ExecStart=/usr/local/bin/ghostport --interface ${GHOSTPORT_INTERFACE} --interval ${GHOSTPORT_INTERVAL} --json $GHOSTPORT_EXTRA_ARGS
 Restart=on-failure
 RestartSec=5s
 
