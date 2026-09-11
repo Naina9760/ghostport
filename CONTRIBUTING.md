@@ -4,9 +4,9 @@ Thank you for helping improve GhostPort.
 
 ## Before contributing
 
-The repository owner must add an open-source license before external
-contributions can be accepted. Until that happens, use issues for discussion and
-do not submit substantial third-party code.
+Contributions accepted into GhostPort are licensed under Apache-2.0. By
+submitting a contribution, you confirm that you have the right to provide it
+under that license.
 
 For behavior changes, open or reference an issue that describes the threat model,
 expected behavior, privacy impact, and verification plan. Keep pull requests
