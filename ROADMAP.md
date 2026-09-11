@@ -23,8 +23,8 @@
 - [x] Deliver events to a configurable HTTPS endpoint.
 - [x] Authenticate events and retry with bounded backoff.
 - [ ] Add health and sensor-status reporting.
-- [ ] Package a hardened systemd service.
-- [ ] Document upgrades and rollback.
+- [x] Package a hardened systemd service.
+- [x] Document upgrades and rollback.
 
 ## Later: honey-mesh
 
