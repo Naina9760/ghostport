@@ -145,6 +145,18 @@ Each alert is POSTed as JSON with `Authorization: Bearer <token>`. Delivery:
 - never logs the token; log lines mention only the endpoint, status codes,
   and attempt counts.
 
+## Running as a service
+
+`packaging/systemd/ghostport.service` is a hardened systemd unit: GhostPort
+runs as a dedicated, non-root user with only the specific Linux
+capabilities it needs (`CAP_BPF`, `CAP_NET_ADMIN`, `CAP_PERFMON`,
+`CAP_SYS_RESOURCE`), inside a locked-down sandbox (`ProtectSystem=strict`,
+`NoNewPrivileges`, a scoped syscall filter, and more). See
+[docs/INSTALL.md](docs/INSTALL.md) for install, uninstall, upgrade, and
+rollback instructions, and `scripts/systemd-integration-test.sh` (also run
+by CI) for a real, end-to-end run under systemd — including verifying that
+`systemctl stop` cleanly detaches the BPF program.
+
 ## Development
 
 ```sh
@@ -190,7 +202,7 @@ Two behaviors worth knowing about:
 
 Planned follow-up milestones:
 
-1. A hardened systemd service and health/status reporting.
+1. Health and sensor-status reporting.
 2. Decoy-service orchestration.
 3. Authenticated fleet management and a central dashboard.
 

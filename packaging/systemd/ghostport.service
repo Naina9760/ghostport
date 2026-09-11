@@ -1,0 +1,64 @@
+[Unit]
+Description=GhostPort eBPF network sensor
+Documentation=https://github.com/Naina9760/ghostport
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/ghostport/ghostport.env
+# Optional and separate from the main config file so it can carry tighter
+# permissions (0600, owned by the ghostport user): holds only
+# GHOSTPORT_DELIVERY_TOKEN when --deliver is used. The leading "-" makes
+# this file optional; the service still starts without it.
+EnvironmentFile=-/etc/ghostport/delivery-token.env
+# GHOSTPORT_EXTRA_ARGS is deliberately unbraced ($VAR, not ${VAR}): systemd
+# word-splits an unbraced expansion and drops it entirely when empty,
+# producing zero extra arguments. The braced form always inserts exactly
+# one argument, even an empty string, which flag.NArg() then rejects as an
+# unexpected positional argument - caught by
+# scripts/systemd-integration-test.sh actually starting this unit on Linux.
+ExecStart=/usr/local/bin/ghostport --interface ${GHOSTPORT_INTERFACE} --interval ${GHOSTPORT_INTERVAL} --json $GHOSTPORT_EXTRA_ARGS
+Restart=on-failure
+RestartSec=5s
+
+# GhostPort loads and attaches a BPF program instead of running as root.
+# CAP_BPF: load BPF programs and create BPF maps (Linux 5.8+).
+# CAP_NET_ADMIN: attach/detach the TCX ingress link on the target interface.
+# CAP_PERFMON: required by the verifier for some program/map operations on
+#   several kernel versions even for non-tracing program types.
+# CAP_SYS_RESOURCE: raise RLIMIT_MEMLOCK for the BPF map (rlimit.RemoveMemlock).
+User=ghostport
+Group=ghostport
+AmbientCapabilities=CAP_BPF CAP_NET_ADMIN CAP_PERFMON CAP_SYS_RESOURCE
+CapabilityBoundingSet=CAP_BPF CAP_NET_ADMIN CAP_PERFMON CAP_SYS_RESOURCE
+NoNewPrivileges=true
+
+# Sandboxing: GhostPort touches no files at runtime beyond stdout (captured
+# by the journal) and the BPF syscall interface, so it can be sandboxed
+# tightly.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+UMask=0077
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=bpf
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
