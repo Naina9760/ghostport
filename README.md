@@ -1,5 +1,7 @@
 # GhostPort
 
+![GhostPort, an eBPF network sentinel](docs/assets/ghostport-hero.png)
+
 [![CI](https://github.com/Naina9760/ghostport/actions/workflows/ci.yml/badge.svg)](https://github.com/Naina9760/ghostport/actions/workflows/ci.yml)
 [![Release](https://github.com/Naina9760/ghostport/actions/workflows/release.yml/badge.svg)](https://github.com/Naina9760/ghostport/actions/workflows/release.yml)
 
@@ -12,6 +14,10 @@ single-host sensor with text and newline-delimited JSON output. Scan detection,
 decoy services, fleet coordination, alert delivery, and a dashboard are planned
 separately; the current sensor should not yet be described as a complete
 honey-mesh.
+
+## Architecture
+
+![GhostPort data path from Linux interface through eBPF and the Go controller](docs/assets/architecture.svg)
 
 ## Requirements
 
