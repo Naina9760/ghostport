@@ -46,6 +46,8 @@ type config struct {
 	deliverTimeout    time.Duration
 	deliverMaxRetries int
 	deliverQueueSize  int
+
+	status bool
 }
 
 // deliveryAuthTokenEnvVar is the only place an operator provides the
@@ -109,6 +111,7 @@ func parseConfig(args []string) (config, error) {
 	flags.DurationVar(&cfg.deliverTimeout, "deliver-timeout", defaultDelivery.Timeout, "per-attempt HTTP timeout for event delivery")
 	flags.IntVar(&cfg.deliverMaxRetries, "deliver-max-retries", defaultDelivery.MaxRetries, "additional delivery attempts after the first, for retryable failures")
 	flags.IntVar(&cfg.deliverQueueSize, "deliver-queue-size", defaultDelivery.QueueSize, "maximum alerts buffered waiting for delivery before new ones are dropped")
+	flags.BoolVar(&cfg.status, "status", true, "emit a periodic status event (uptime, flow count, detector/delivery internals)")
 
 	if err := flags.Parse(args); err != nil {
 		return config{}, err
@@ -231,6 +234,11 @@ func run(args []string) error {
 	}
 	defer attachment.Close()
 
+	startTime := time.Now()
+	if err := notifySystemd("READY=1"); err != nil {
+		log.Printf("systemd readiness notification: %v", err)
+	}
+
 	log.Printf("sensor attached; reporting every %s", cfg.interval)
 
 	var detector *scanDetector
@@ -258,6 +266,13 @@ func run(args []string) error {
 		}()
 	}
 
+	if wd := watchdogInterval(); wd > 0 {
+		log.Printf("systemd watchdog enabled: pinging every %s", wd)
+		go runWatchdog(ctx, wd)
+	}
+
+	kernel := kernelRelease()
+
 	ticker := time.NewTicker(cfg.interval)
 	defer ticker.Stop()
 
@@ -265,6 +280,9 @@ func run(args []string) error {
 		select {
 		case <-ctx.Done():
 			log.Println("shutting down and detaching sensor")
+			if err := notifySystemd("STOPPING=1"); err != nil {
+				log.Printf("systemd stopping notification: %v", err)
+			}
 			if delivery != nil {
 				deliveryWG.Wait()
 				if dropped := delivery.Dropped(); dropped > 0 {
@@ -289,6 +307,49 @@ func run(args []string) error {
 						delivery.Enqueue(alert)
 					}
 				}
+			}
+			if cfg.status {
+				status := SensorStatus{
+					SchemaVersion:        statusSchemaVersion,
+					Kind:                 "status",
+					Interface:            iface.Name,
+					KernelRelease:        kernel,
+					UptimeSeconds:        time.Since(startTime).Seconds(),
+					TrafficFlows:         len(records),
+					TrafficFlowsMax:      int(objs.TrafficCounts.MaxEntries()),
+					ScanDetectionEnabled: detector != nil,
+					DeliveryEnabled:      delivery != nil,
+					Timestamp:            time.Now().UTC(),
+				}
+				if detector != nil {
+					status.ScanTrackedSources = detector.TrackedSources()
+				}
+				if delivery != nil {
+					status.DeliveryQueued = delivery.QueueDepth()
+					status.DeliveryDropped = delivery.Dropped()
+				}
+				if err := writeStatus(os.Stdout, status, cfg.jsonOutput); err != nil {
+					return err
+				}
+			}
+		}
+	}
+}
+
+// runWatchdog pings systemd's watchdog at the given interval until ctx is
+// done. Errors are logged, not fatal: a failed watchdog ping should not
+// crash the sensor, though it may cause systemd to eventually restart it,
+// which is the intended failure mode for a genuinely hung process.
+func runWatchdog(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := notifySystemd("WATCHDOG=1"); err != nil {
+				log.Printf("systemd watchdog notification: %v", err)
 			}
 		}
 	}

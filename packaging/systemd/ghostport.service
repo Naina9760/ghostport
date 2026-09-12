@@ -5,7 +5,15 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+# Type=notify: GhostPort signals readiness (READY=1) only after it has
+# successfully attached the TCX program, so `systemctl status` shows
+# "active (running)" only once the sensor is actually observing traffic,
+# not merely once the process has started. WatchdogSec pairs with
+# GhostPort pinging WATCHDOG=1 at less than half that interval; if it stops
+# (a genuine hang), systemd restarts it via Restart=on-failure below.
+Type=notify
+NotifyAccess=main
+WatchdogSec=30s
 EnvironmentFile=/etc/ghostport/ghostport.env
 # Optional and separate from the main config file so it can carry tighter
 # permissions (0600, owned by the ghostport user): holds only

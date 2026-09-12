@@ -23,6 +23,12 @@ been tagged yet; everything below is unreleased.
 - A hardened systemd unit (`packaging/systemd/ghostport.service`) running
   as a non-root user with a minimal, explicit capability set, plus install/
   uninstall/upgrade/rollback documentation (`docs/INSTALL.md`).
+- A periodic `status` JSON event (uptime, kernel release, flow count against
+  the BPF map's capacity, scan-detector and event-delivery internals), on
+  by default and disableable with `--status=false`; and standard
+  `sd_notify(3)` integration under systemd (`READY=1` only after a
+  successful TCX attach, `WATCHDOG=1` pings when `WatchdogSec=` is
+  configured), a no-op outside systemd.
 - A threat model (`docs/THREAT_MODEL.md`) covering eBPF parsing, scan
   detection, event delivery, and service hardening.
 - Multi-architecture (linux/amd64, linux/arm64) release packaging with

@@ -84,6 +84,13 @@ func (d *eventDelivery) Dropped() uint64 {
 	return atomic.LoadUint64(&d.dropped)
 }
 
+// QueueDepth reports how many alerts are currently buffered awaiting
+// delivery. Reading a channel's length is safe for concurrent use; this is
+// a snapshot for the status event, not a value to synchronize on.
+func (d *eventDelivery) QueueDepth() int {
+	return len(d.queue)
+}
+
 // Run delivers queued alerts until ctx is done, then drains whatever is
 // still queued for up to cfg.ShutdownGrace before returning. Run is meant
 // to be driven from a single goroutine per eventDelivery instance.

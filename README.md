@@ -145,17 +145,43 @@ Each alert is POSTed as JSON with `Authorization: Bearer <token>`. Delivery:
 - never logs the token; log lines mention only the endpoint, status codes,
   and attempt counts.
 
+## Health and status
+
+Status reporting is on by default. Once per reporting interval, alongside
+the traffic snapshot, GhostPort emits a status event: uptime, the running
+kernel release, current flow count against the BPF map's capacity, and (when
+enabled) how many source IPs the scan detector is tracking and the event
+delivery queue's depth and drop count. In `--json` mode it is a
+newline-delimited JSON object identified by `"kind":"status"`:
+
+```json
+{"schema_version":1,"kind":"status","interface":"eth0","kernel_release":"6.8.0-49-generic","uptime_seconds":125.3,"traffic_flows":12,"traffic_flows_max":4096,"scan_detection_enabled":true,"scan_tracked_sources":3,"delivery_enabled":false,"timestamp":"2026-01-01T00:02:05Z"}
+```
+
+Disable it with `--status=false`. Nothing here is delivered to the HTTPS
+event-delivery endpoint — it is local-only telemetry about GhostPort itself,
+not a scan alert.
+
+Under systemd, GhostPort also speaks the standard `sd_notify(3)` protocol:
+it signals `READY=1` only after a successful TCX attach (so `systemctl
+status` shows "active (running)" only once the sensor is actually observing
+traffic), and pings `WATCHDOG=1` if the unit sets `WatchdogSec=`, so systemd
+can detect and restart a genuinely hung process rather than one merely
+running. This is a no-op outside systemd (when `$NOTIFY_SOCKET` is unset).
+
 ## Running as a service
 
 `packaging/systemd/ghostport.service` is a hardened systemd unit: GhostPort
 runs as a dedicated, non-root user with only the specific Linux
 capabilities it needs (`CAP_BPF`, `CAP_NET_ADMIN`, `CAP_PERFMON`,
 `CAP_SYS_RESOURCE`), inside a locked-down sandbox (`ProtectSystem=strict`,
-`NoNewPrivileges`, a scoped syscall filter, and more). See
+`NoNewPrivileges`, a scoped syscall filter, and more), with `Type=notify`
+and a 30-second watchdog (see [Health and status](#health-and-status)). See
 [docs/INSTALL.md](docs/INSTALL.md) for install, uninstall, upgrade, and
 rollback instructions, and `scripts/systemd-integration-test.sh` (also run
-by CI) for a real, end-to-end run under systemd — including verifying that
-`systemctl stop` cleanly detaches the BPF program.
+by CI) for a real, end-to-end run under systemd — including verifying the
+readiness handshake, the status event, no spurious watchdog restarts, and
+that `systemctl stop` cleanly detaches the BPF program.
 
 ## Development
 

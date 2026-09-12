@@ -22,7 +22,7 @@
 
 - [x] Deliver events to a configurable HTTPS endpoint.
 - [x] Authenticate events and retry with bounded backoff.
-- [ ] Add health and sensor-status reporting.
+- [x] Add health and sensor-status reporting.
 - [x] Package a hardened systemd service.
 - [x] Document upgrades and rollback.
 

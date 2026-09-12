@@ -44,8 +44,12 @@ sudo systemctl enable --now ghostport
 
 sleep 2
 
+# The unit is Type=notify: systemd only reports ActiveState=active once
+# GhostPort actually sends READY=1 (after a successful TCX attach), not
+# merely once the process has started. If the sd_notify handshake were
+# broken, this would stay "activating" until TimeoutStartSec and fail here.
 if ! systemctl is-active --quiet ghostport; then
-  echo "ghostport.service did not become active" >&2
+  echo "ghostport.service did not reach ActiveState=active (Type=notify readiness handshake did not complete)" >&2
   sudo systemctl status ghostport --no-pager >&2 || true
   sudo journalctl -u ghostport --no-pager >&2 || true
   exit 1
@@ -62,6 +66,21 @@ sleep 2
 
 if ! sudo journalctl -u ghostport --no-pager | grep -q '"source_ip":"127.0.0.1"'; then
   echo "ghostport.service did not report loopback traffic while running under systemd" >&2
+  sudo journalctl -u ghostport --no-pager >&2
+  exit 1
+fi
+
+if ! sudo journalctl -u ghostport --no-pager | grep -q '"kind":"status"'; then
+  echo "ghostport.service did not emit a status event (--status defaults on)" >&2
+  sudo journalctl -u ghostport --no-pager >&2
+  exit 1
+fi
+
+# WatchdogSec=30s means GhostPort should ping well under every 15s; over
+# this short test it must never be restarted for a missed watchdog ping.
+restarts=$(systemctl show ghostport --property=NRestarts --value)
+if [[ "$restarts" != "0" ]]; then
+  echo "ghostport.service restarted $restarts time(s) unexpectedly (possible watchdog ping failure)" >&2
   sudo journalctl -u ghostport --no-pager >&2
   exit 1
 fi
