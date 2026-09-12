@@ -61,6 +61,18 @@ func parseKernelVersion(release string) (major, minor int, ok bool) {
 	return major, minor, true
 }
 
+// kernelRelease returns the running kernel's uname release string (e.g.
+// "6.8.0-49-generic"), or "" if it cannot be determined. Used for
+// diagnostics only (the status event), never for a compatibility decision
+// - that is checkKernelSupportsTCX's job.
+func kernelRelease() string {
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
+		return ""
+	}
+	return unix.ByteSliceToString(uname.Release[:])
+}
+
 // leadingInt parses the run of leading decimal digits in s, allowing a
 // trailing non-digit suffix (as in "6.6.0-generic", whose second field is
 // "6" with nothing to trim, or "6.6-rc1", whose second field is "6-rc1").

@@ -150,6 +150,21 @@ attacker who compromises the GhostPort process itself (e.g. via a Go
 runtime or dependency vulnerability) inherits only those capabilities and
 that sandbox, not full root.
 
+Under systemd, GhostPort writes one-way `sd_notify(3)` messages
+(`READY=1`, `WATCHDOG=1`, `STOPPING=1`) to the unix datagram socket named
+by `$NOTIFY_SOCKET`, which systemd sets up per-unit specifically for this
+purpose; GhostPort never reads from it. Outside systemd this environment
+variable is unset and the code path is a no-op.
+
+## Health and status reporting
+
+The periodic `status` event (uptime, kernel release, flow count, detector/
+delivery internals) is local-only: it is written to the same stdout stream
+as traffic and scan-alert events and is never sent to the HTTPS delivery
+endpoint. It reveals nothing about observed network traffic beyond an
+aggregate count, so it does not expand the confidentiality concerns already
+covered above.
+
 ## Explicitly out of scope
 
 - Payload inspection of any kind.

@@ -74,6 +74,23 @@ func TestParseConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("status defaults on and can be disabled", func(t *testing.T) {
+		cfg, err := parseConfig([]string{"--interface", "eth0"})
+		if err != nil {
+			t.Fatalf("parseConfig returned error: %v", err)
+		}
+		if !cfg.status {
+			t.Fatal("status = false, want true by default")
+		}
+		cfg, err = parseConfig([]string{"--interface", "eth0", "--status=false"})
+		if err != nil {
+			t.Fatalf("parseConfig returned error: %v", err)
+		}
+		if cfg.status {
+			t.Fatal("status = true after --status=false")
+		}
+	})
+
 	for _, tc := range []struct {
 		name string
 		args []string

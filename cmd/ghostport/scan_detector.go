@@ -137,6 +137,13 @@ func newScanDetector(cfg scanDetectorConfig) *scanDetector {
 	}
 }
 
+// TrackedSources reports how many distinct source IPs currently have
+// activity tracked (bounded by cfg.MaxTrackedSources). Used only for the
+// status event; not part of detection itself.
+func (d *scanDetector) TrackedSources() int {
+	return len(d.sources)
+}
+
 // Observe processes one traffic snapshot and returns any alerts that just
 // crossed a threshold (subject to cooldown). Calling it repeatedly with a
 // monotonically non-decreasing now is the expected usage; it is not safe

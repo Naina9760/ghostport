@@ -129,8 +129,22 @@ current set.
 `systemctl stop` sends `SIGTERM`. GhostPort's signal handling (`main.go`,
 via `signal.NotifyContext`) is the same whether it is started by systemd or
 run directly at a terminal with `Ctrl+C`: on either signal, it logs
-`shutting down and detaching sensor`, detaches the TCX ingress link, drains
-any in-flight event delivery (bounded by a shutdown grace period), and
-exits. `scripts/systemd-integration-test.sh` verifies this concretely on
-real Linux by checking `bpftool net` shows no GhostPort program attached to
-the test interface after `systemctl stop` completes.
+`shutting down and detaching sensor`, sends `STOPPING=1` over `sd_notify`
+under systemd, detaches the TCX ingress link, drains any in-flight event
+delivery (bounded by a shutdown grace period), and exits.
+`scripts/systemd-integration-test.sh` verifies this concretely on real
+Linux by checking `bpftool net` shows no GhostPort program attached to the
+test interface after `systemctl stop` completes.
+
+## Readiness and liveness
+
+The unit is `Type=notify`: GhostPort sends `READY=1` only after a
+successful TCX attach, so `systemctl status` reports "active (running)"
+only once the sensor is genuinely observing traffic, not merely once the
+process has started. `WatchdogSec=30s` in the unit pairs with GhostPort
+pinging `WATCHDOG=1` at less than half that interval; if those pings stop
+(a real hang, not just high load), systemd restarts the service via
+`Restart=on-failure`. `scripts/systemd-integration-test.sh` checks both:
+that the service actually reaches `ActiveState=active` (which requires the
+readiness handshake to have worked) and that it accumulates zero restarts
+over the test run.

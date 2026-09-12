@@ -8,3 +8,8 @@ package main
 func checkKernelSupportsTCX() error {
 	return nil
 }
+
+// kernelRelease is unavailable off Linux.
+func kernelRelease() string {
+	return ""
+}
