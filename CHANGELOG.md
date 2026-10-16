@@ -34,7 +34,7 @@ been tagged yet; everything below is unreleased.
 - Multi-architecture (linux/amd64, linux/arm64) release packaging with
   SHA-256 checksums, driven by pushing a version tag.
 - CI: reproducible eBPF compilation (verified byte-for-byte against a fresh
-  build, with sanitized debug paths), unit tests, race detection, `go vet`,
+  build, debug info stripped), unit tests, race detection, `go vet`,
   `staticcheck`, `govulncheck`, `gitleaks`, `shellcheck`, `actionlint`, and
   four real Linux/root integration tests: a loopback traffic smoke test, a
   synthetic port-scan detection test, privileged eBPF program tests run via
@@ -53,8 +53,9 @@ been tagged yet; everything below is unreleased.
 
 ### Fixed
 
-- The committed eBPF object no longer embeds the CI runner's filesystem
-  checkout path in its DWARF debug information (`-fdebug-prefix-map`).
+- The committed eBPF object keeps BTF but no DWARF debug info, so it does not
+  change when the build image's system headers update. The CI runner is
+  pinned to Ubuntu 24.04.
 
 ### Security
 

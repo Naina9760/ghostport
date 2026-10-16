@@ -16,9 +16,11 @@ endif
 
 BPF_SOURCE := cmd/ghostport/ghostport.bpf.c
 BPF_OBJECT := cmd/ghostport/ghostport.bpf.o
-# -fdebug-prefix-map rewrites the build directory recorded in DWARF debug info
-# to a fixed value so the object is byte-identical regardless of the checkout
-# path (e.g. a contributor's home directory vs. a GitHub Actions runner path).
+STRIP ?= llvm-strip
+# The object keeps BTF, which is what the loader reads, but not DWARF. DWARF
+# records a checksum of every system header, so it changes whenever the build
+# image's headers update and makes the committed object look stale. The prefix
+# map keeps checkout paths out of what remains.
 BPF_CFLAGS := -O2 -g -target bpf -D__TARGET_ARCH_$(BPF_ARCH) -I/usr/include/$(MULTIARCH) -fdebug-prefix-map=$(CURDIR)=.
 
 .PHONY: all bpf build clean fmt test vet verify
@@ -27,6 +29,7 @@ all: verify build
 
 bpf:
 	$(CLANG) $(BPF_CFLAGS) -c $(BPF_SOURCE) -o $(BPF_OBJECT)
+	$(STRIP) -g $(BPF_OBJECT)
 
 build: bpf
 	mkdir -p bin

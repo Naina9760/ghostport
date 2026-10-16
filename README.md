@@ -209,7 +209,8 @@ sudo ./bin/ghostport.test -test.v
 
 The checked-in `cmd/ghostport/ghostport.bpf.o` is embedded into the controller.
 After editing the C source, run `make bpf` on Linux and commit the regenerated
-object with the source change. CI verifies that the object is reproducible.
+object with the source change. CI rebuilds it on Ubuntu 24.04 (clang 18) and
+fails if the result differs from the committed file.
 
 ## Current scope
 
